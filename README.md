@@ -1,6 +1,6 @@
-# Async PDF OCR & Search Engine 📄🔍
+# Async PDF OCR & Semantic Search Engine 📄🔍
 
-A powerful, asynchronous PDF processing system built with Django, Celery, and Elasticsearch. This project allows users to upload PDF documents, automatically extract text using Tesseract OCR with OpenCV preprocessing, and index the content for high-performance full-text search.
+A powerful, asynchronous PDF processing system built with Django, Celery, and Elasticsearch. This project allows users to upload PDF documents, automatically extract text using Tesseract OCR with OpenCV preprocessing, generate vector embeddings for semantic search, and index the content for high-performance hybrid (full-text + vector) search.
 
 ![Python](https://img.shields.io/badge/Python-3.12-blue?style=for-the-badge&logo=python)
 ![Django](https://img.shields.io/badge/Django-5.0-green?style=for-the-badge&logo=django)
@@ -16,7 +16,8 @@ A powerful, asynchronous PDF processing system built with Django, Celery, and El
 - **👁️ Advanced OCR**: Utilizes Tesseract OCR for text extraction.
 - **🖼️ Image Preprocessing**: Uses OpenCV (adaptive thresholding) to improve OCR accuracy by cleaning up page images.
 - **📊 Real-time Progress**: Stream extraction progress in real-time via Server-Sent Events (SSE).
-- **🔎 Full-Text Search**: Indexed extracted text in Elasticsearch for ultra-fast searching across all documents.
+- **🔎 Hybrid Search**: Combines traditional BM25 full-text search with AI-powered KNN vector search for more accurate and context-aware results.
+- **🧠 Vector Embeddings**: Automatically generates semantic embeddings for every page using the `all-MiniLM-L6-v2` model.
 - **🛠️ Scalable Architecture**: Containerized setup with RabbitMQ as a message broker and dedicated worker services.
 
 ---
@@ -26,7 +27,8 @@ A powerful, asynchronous PDF processing system built with Django, Celery, and El
 - **Backend**: Django & Django REST Framework (DRF)
 - **Task Queue**: Celery
 - **Message Broker**: RabbitMQ
-- **Search Engine**: Elasticsearch
+- **Search Engine**: Elasticsearch with KNN support
+- **AI/ML**: Sentence-Transformers (`all-MiniLM-L6-v2`)
 - **OCR Engine**: Tesseract OCR
 - **Image Processing**: OpenCV, Pillow, pdf2image
 - **DevOps**: Docker & Docker Compose
@@ -73,7 +75,9 @@ A powerful, asynchronous PDF processing system built with Django, Celery, and El
 
 ### 3. Search Extracted Text
 - **Endpoint**: `GET /api/search/?q=<query>`
-- **Description**: Performs a full-text search across all processed documents using Elasticsearch.
+- **Description**: Performs a **hybrid search** across all processed documents. It combines:
+    - **Keyword Matching**: Phrase prefix and full-text matches.
+    - **Semantic Search**: KNN vector comparison using 384-dimensional embeddings to find contextually relevant content even if exact keywords don't match.
 
 ### 4. List Documents
 - **Endpoint**: `GET /api/files/`
