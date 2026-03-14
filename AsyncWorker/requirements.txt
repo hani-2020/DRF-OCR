@@ -8,4 +8,5 @@ pdf2image
 pika
 opencv-python
 django-celery-results
-elasticsearch
+elasticsearch<9.0.0
+sentence-transformers

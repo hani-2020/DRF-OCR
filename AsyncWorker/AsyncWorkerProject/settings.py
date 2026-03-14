@@ -77,8 +77,12 @@ WSGI_APPLICATION = 'AsyncWorkerProject.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'drfpractice_db',
+        'USER': 'db_user',
+        'PASSWORD': 'db_password',
+        'HOST': 'postgres',
+        'PORT': '5432',
     }
 }
 

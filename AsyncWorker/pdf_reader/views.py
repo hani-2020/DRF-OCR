@@ -10,6 +10,42 @@ import time
 import json
 
 es = Elasticsearch(hosts=["http://elastic-search:9200"])
+_model_instance = None
+
+def get_model():
+    global _model_instance
+    if _model_instance is None:
+        from sentence_transformers import SentenceTransformer
+        _model_instance = SentenceTransformer("all-MiniLM-L6-v2")
+    return _model_instance
+
+def sync_es_with_db():
+    valid_ids = set(PDFDocument.objects.values_list('id', flat=True))
+    results = es.search(index="pdf_pages", body={
+        "size": 0,
+        "aggs": {
+            "all_document_ids": {
+                "terms": {
+                    "field": "document_id",
+                    "size": 10000
+                }
+            }
+        }
+    })
+    
+    es_ids = set(
+        bucket['key'] 
+        for bucket in results['aggregations']['all_document_ids']['buckets']
+    )
+    
+    orphaned_ids = es_ids - valid_ids
+    
+    for doc_id in orphaned_ids:
+        es.delete_by_query(index="pdf_pages", body={
+            "query": {
+                "term": {"document_id": doc_id}
+            }
+        })
 
 class UploadPDF(APIView):
     parser_classes = [FormParser, MultiPartParser]
@@ -64,6 +100,12 @@ class GetFile(APIView):
         serializer = PDFDocumentSerializer(file)
         return Response(serializer.data, status=200)
 
+    def delete(self, request, file_id):
+        file = PDFDocument.objects.get(id=file_id)
+        file.delete()
+        sync_es_with_db()
+        return Response({"message": "File deleted successfully"}, status=200)
+
 class GetExtractionJobs(APIView):
     def get(self, request):
         jobs = ExtractionJob.objects.all()
@@ -75,13 +117,40 @@ class SearchText(APIView):
         query = request.query_params.get('q', '')
         if not query:
             return Response({"error": "Query parameter 'q' is required"}, status=400)
+        query_vector = get_model().encode(query).tolist()
         search_body = {
-            "query": {
-                "match_phrase_prefix": {
-                    "text": query
+                "size": 5,
+                "query": {
+                    "bool": {
+                        "should": [
+                            {
+                                "match_phrase_prefix": {
+                                    "text": {
+                                        "query": query,
+                                        "boost": 3.0
+                                    }
+                                }
+                            },
+                            {
+                                "match": {
+                                    "text": {
+                                        "query": query,
+                                        "boost": 2.0
+                                    }
+                                }
+                            },
+                            {
+                                "knn": {
+                                    "field": "embedding",
+                                    "query_vector": query_vector,
+                                    "num_candidates": 100,
+                                    "boost": 1.0
+                                }
+                            }
+                        ]
+                    }
                 }
             }
-        }
         try:
             results = es.search(index="pdf_pages", body=search_body)
             hits = results['hits']['hits']
@@ -91,7 +160,8 @@ class SearchText(APIView):
                     "document_id": hit['_source']['document_id'],
                     "page_number": hit['_source']['page_number'],
                     "text": hit['_source']['text'],
-                    "score": hit['_score']
+                    "score": hit['_score'],
+                    "explanation": hit.get('_explanation', {})
                 })     
             return Response(formatted_results, status=200)
         except Exception as e:
